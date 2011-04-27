@@ -8,4 +8,6 @@ class ChaosMonkeyProject(info: ProjectInfo) extends DefaultProject(info)
   // Logula
   val codaRepo = "Coda Hale's Repository" at "http://repo.codahale.com/"
   val logula = "com.codahale" %% "logula" % "2.1.1" withSources()
+  
+  override def mainClass = Some("com.bubblefoundry.chaosmonkey.ReleaseTheMonkey")
 }

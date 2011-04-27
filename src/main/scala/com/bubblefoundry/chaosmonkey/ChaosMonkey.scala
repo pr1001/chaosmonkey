@@ -32,8 +32,8 @@ case class EC2Shutdown(ec2: AmazonEC2Client, theName: String = "EC2Shutdown") ex
   def name = theName
   def causeMischief(instance: Instance) = {
     val currentInstances = ec2.describeInstances.getReservations.flatMap(_.getInstances).toList
-    // if already stopped
-    if (currentInstances.exists(anInstance => anInstance.getInstanceId == instance.getInstanceId && anInstance.getState.getName == "stopped")) {
+    // if running
+    if (currentInstances.exists(anInstance => anInstance.getInstanceId == instance.getInstanceId && anInstance.getState.getName == "running")) {
       val stopped = ec2.stopInstances(new StopInstancesRequest(instance.getInstanceId :: Nil))
       val states = stopped.getStoppingInstances.map(_.getCurrentState)
     } else {
@@ -43,14 +43,14 @@ case class EC2Shutdown(ec2: AmazonEC2Client, theName: String = "EC2Shutdown") ex
           val stopped = ec2.stopInstances(new StopInstancesRequest(instance.getInstanceId :: Nil))
           val states = stopped.getStoppingInstances.map(_.getCurrentState)
         }
-      }, round(random * 1.minute.millis + 1.seconds.millis))
+      }, 30.seconds.millis)
     }
     true
   }
   def repairMischief(instance: Instance) = {
     val currentInstances = ec2.describeInstances.getReservations.flatMap(_.getInstances).toList
-    // if already stopped
-    if (currentInstances.exists(anInstance => anInstance.getInstanceId == instance.getInstanceId && anInstance.getState.getName == "running")) {
+    // if stopped
+    if (currentInstances.exists(anInstance => anInstance.getInstanceId == instance.getInstanceId && anInstance.getState.getName == "stopped")) {
       val started = ec2.startInstances(new StartInstancesRequest(instance.getInstanceId :: Nil))
       val states = started.getStartingInstances.map(_.getCurrentState)
     } else {
@@ -60,7 +60,7 @@ case class EC2Shutdown(ec2: AmazonEC2Client, theName: String = "EC2Shutdown") ex
           val started = ec2.startInstances(new StartInstancesRequest(instance.getInstanceId :: Nil))
           val states = started.getStartingInstances.map(_.getCurrentState)
         }
-      }, round(random * 1.minute.millis + 1.seconds.millis))
+      }, 30.seconds.millis)
     }
     true
   }
@@ -116,7 +116,7 @@ trait MonkeyTarget {
         val fixeds = currentMischief.instances.map(instance => (currentMischief.action.repairMischief(instance), instance))
         println("Oh, what a nice monkey! He fixed the " + currentMischief.action.name + " he did on " + instancesStr + ".")
       }
-    }, round(random * 1.minute.millis + 1.seconds.millis))
+    }, round(random * 2.minute.millis + 30.seconds.millis))
     // }, round(random * 1.hour.millis + 60.seconds.millis)) // happen anytime later from 60 seconds to 61 minutes
   }
 }
@@ -124,7 +124,7 @@ trait MonkeyTarget {
 class EC2Target(credentials: AWSCredentials) extends MonkeyTarget {
   val service = new AmazonEC2Client(credentials)
   // bah
-  service.setEndpoint("ec2.eu-west-1.amazonaws.com")
+  service.setEndpoint("ec2.us-east-1.amazonaws.com")
   val name = "EC2"
   
   def instances = service.describeInstances.getReservations.flatMap(_.getInstances)
@@ -175,10 +175,10 @@ class ChaosMonkey(key: String, secret: String) extends Actor {
   def act = loop {
     react {
       case GoApeshit => {
-        println("Oh no, the Chaos Monkey broke out of his cage! Runs for your lives!")
+        println("Oh no, the Chaos Monkey broke out of his cage! Run for your lives!")
         // sleep for anywhere from 100 to 1100 seconds
         // Thread.sleep(round(random * 1000.seconds.millis + 100.seconds.millis).toInt)
-        Thread.sleep(round(random * 1.minute.millis + 1.seconds.millis).toInt)
+        Thread.sleep(round(random * 30.seconds.millis + 1.seconds.millis).toInt)
         this ! BreakShit
       }
       case BreakShit => {
@@ -195,5 +195,19 @@ class ChaosMonkey(key: String, secret: String) extends Actor {
         exit()
       }
     }
+  }
+}
+
+object ReleaseTheMonkey {
+  def main(args: Array[String]) {
+    val monkey = new ChaosMonkey(key = "AKIAIP4GCLLFPTSCHHSA", "c9vD+EfWYF2EsuhxENcUvSjXvFWO7aGQX1NnpTE7")
+    monkey.start
+    monkey ! GoApeshit
+    // else wait and try again
+    new Timer().schedule(new TimerTask() {
+      def run {
+        monkey ! BackToYourCage
+      }
+    }, 5.minutes.millis)
   }
 }
