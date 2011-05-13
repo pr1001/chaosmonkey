@@ -200,7 +200,7 @@ class ChaosMonkey(key: String, secret: String) extends Actor {
 
 object ReleaseTheMonkey {
   def main(args: Array[String]) {
-    val monkey = new ChaosMonkey(key = "AKIAIP4GCLLFPTSCHHSA", "c9vD+EfWYF2EsuhxENcUvSjXvFWO7aGQX1NnpTE7")
+    val monkey = new ChaosMonkey(key = "KEY", secret = "SECRET")
     monkey.start
     monkey ! GoApeshit
     // else wait and try again
